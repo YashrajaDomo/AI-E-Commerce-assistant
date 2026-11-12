@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import ChatMessage from './ChatMessage';
 
-function ChatBot({ isOpen, onClose, messages, onSend }) {
+function ChatBot({ isOpen, onClose, messages, onSend, isSending }) {
   const [draft, setDraft] = useState('');
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    if (!draft.trim()) return;
+    if (!draft.trim() || isSending) return;
     onSend(draft.trim());
     setDraft('');
   };
@@ -36,8 +36,9 @@ function ChatBot({ isOpen, onClose, messages, onSend }) {
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder="I need a laptop under 70000"
+          disabled={isSending}
         />
-        <button type="submit">Send</button>
+        <button type="submit" disabled={isSending}>{isSending ? 'Sending...' : 'Send'}</button>
       </form>
     </div>
   );

@@ -20,6 +20,18 @@ def test_health_endpoint():
     assert response.json()["status"] == "healthy"
 
 
+def test_cors_allows_local_frontend_port():
+    response = client.options(
+        "/api/products",
+        headers={
+            "Origin": "http://localhost:5174",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5174"
+
+
 def test_product_listing():
     response = client.get("/api/products")
     assert response.status_code == 200

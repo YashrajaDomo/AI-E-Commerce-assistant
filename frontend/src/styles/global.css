@@ -306,6 +306,14 @@ button {
   padding: 1rem 0;
 }
 
+.api-error {
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
 .chat-window {
   position: fixed;
   bottom: 1rem;

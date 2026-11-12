@@ -20,6 +20,8 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState(defaultFilters);
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
+  const [apiError, setApiError] = useState('');
   const [chatMessages, setChatMessages] = useState([
     {
       role: 'assistant',
@@ -42,13 +44,20 @@ function App() {
       min_rating: nextFilters.min_rating || undefined,
     };
 
-    const data = await getProducts(params);
-    setProducts(data);
+    try {
+      const data = await getProducts(params);
+      setProducts(data);
+      setApiError('');
+    } catch (error) {
+      setApiError(`Couldn't load products. ${error.message}`);
+    }
   };
 
   useEffect(() => {
     fetchProducts();
-    fetchCart();
+    fetchCart().catch((error) => {
+      setApiError(`Couldn't load the cart. ${error.message}`);
+    });
   }, []);
 
   const handleAddToCart = async (productId) => {
@@ -91,14 +100,23 @@ function App() {
 
   const handleChatSubmit = async (message) => {
     setChatMessages((previous) => [...previous, { role: 'user', text: message, products: [] }]);
+    setChatSending(true);
 
-    const response = await chatWithAI(message);
-    setChatMessages((previous) => [
-      ...previous,
-      { role: 'assistant', text: response.message, products: response.products || [] },
-    ]);
-
-    await fetchCart();
+    try {
+      const response = await chatWithAI(message);
+      setChatMessages((previous) => [
+        ...previous,
+        { role: 'assistant', text: response.message, products: response.products || [] },
+      ]);
+      await fetchCart();
+    } catch (error) {
+      setChatMessages((previous) => [
+        ...previous,
+        { role: 'assistant', text: `I couldn't reach the shopping service. ${error.message}`, products: [] },
+      ]);
+    } finally {
+      setChatSending(false);
+    }
   };
 
   return (
@@ -130,6 +148,8 @@ function App() {
             <Route path="/product/:id" element={<ProductDetails onAddToCart={handleAddToCart} />} />
           </Routes>
 
+          {apiError && <p className="api-error" role="alert">{apiError}</p>}
+
           <Cart
             items={cart.items}
             total={cart.total}
@@ -144,6 +164,7 @@ function App() {
           onClose={() => setChatOpen(false)}
           messages={chatMessages}
           onSend={handleChatSubmit}
+          isSending={chatSending}
         />
       </div>
     </BrowserRouter>
