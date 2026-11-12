@@ -1,4 +1,4 @@
-function Cart({ items, total, onIncrease, onDecrease, onRemove }) {
+function Cart({ items, total, onIncrease, onDecrease, onRemove, onCheckout, checkingOut, orderMessage }) {
   return (
     <aside className="cart-panel">
       <h2>Shopping Cart</h2>
@@ -28,6 +28,15 @@ function Cart({ items, total, onIncrease, onDecrease, onRemove }) {
         <span>Total</span>
         <strong>₹{total}</strong>
       </div>
+      <button
+        type="button"
+        className="checkout-button"
+        disabled={!items.length || checkingOut}
+        onClick={onCheckout}
+      >
+        {checkingOut ? 'Processing...' : 'Checkout (demo)'}
+      </button>
+      {orderMessage && <p className="order-message" role="status">{orderMessage}</p>}
     </aside>
   );
 }

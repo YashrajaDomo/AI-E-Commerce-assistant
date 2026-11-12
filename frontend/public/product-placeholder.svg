@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="600" viewBox="0 0 900 600">
+  <rect width="900" height="600" fill="#eaf1fb"/>
+  <rect x="310" y="160" width="280" height="220" rx="32" fill="#cbdcf4"/>
+  <circle cx="450" cy="270" r="58" fill="#8fb1e6"/>
+  <path d="M383 425h134" stroke="#6889bd" stroke-width="16" stroke-linecap="round"/>
+  <text x="450" y="500" text-anchor="middle" fill="#47658f" font-family="Arial,sans-serif" font-size="26">AI Shop Assistant</text>
+</svg>

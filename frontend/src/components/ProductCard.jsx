@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 function ProductCard({ product, onAddToCart }) {
   return (
     <article className="product-card">
-      <img src={product.image_url} alt={product.name} />
+      <img src={product.image_url || '/product-placeholder.svg'} alt={product.name} />
       <div className="product-body">
         <div className="product-header">
           <span className="badge">{product.category}</span>

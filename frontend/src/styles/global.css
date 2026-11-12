@@ -301,6 +301,27 @@ button {
   font-weight: 700;
 }
 
+.checkout-button {
+  width: 100%;
+  margin-top: 1rem;
+  background: #0f766e;
+  color: white;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.75rem;
+  font-weight: 700;
+}
+
+.checkout-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.order-message {
+  color: #0f766e;
+  font-size: 0.9rem;
+}
+
 .empty-state {
   color: #64748b;
   padding: 1rem 0;

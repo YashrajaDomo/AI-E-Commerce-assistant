@@ -5,7 +5,7 @@ import Cart from './components/Cart';
 import ChatBot from './components/ChatBot';
 import Home from './pages/Home';
 import ProductDetails from './pages/ProductDetails';
-import { addToCart, getCart, getProducts, removeCartItem, updateCartItem, chatWithAI } from './services/api';
+import { addToCart, createOrder, getCart, getProducts, removeCartItem, updateCartItem, chatWithAI } from './services/api';
 
 const defaultFilters = {
   category: '',
@@ -22,6 +22,8 @@ function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatSending, setChatSending] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [orderMessage, setOrderMessage] = useState('');
   const [chatMessages, setChatMessages] = useState([
     {
       role: 'assistant',
@@ -83,6 +85,28 @@ function App() {
   const handleRemove = async (itemId) => {
     await removeCartItem(itemId);
     await fetchCart();
+  };
+
+  const handleCheckout = async () => {
+    setCheckingOut(true);
+    setOrderMessage('');
+    try {
+      const order = await createOrder(
+        cart.items.map((item) => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+        })),
+      );
+      await Promise.all(cart.items.map((item) => removeCartItem(item.id)));
+      await fetchCart();
+      setOrderMessage(
+        `Order #${order.id} confirmed. Demo payment ${order.payment.status}. Total: ₹${order.total}.`,
+      );
+    } catch (error) {
+      setOrderMessage(`Checkout failed. ${error.message}`);
+    } finally {
+      setCheckingOut(false);
+    }
   };
 
   const handleSearch = async () => {
@@ -156,6 +180,9 @@ function App() {
             onIncrease={handleIncrease}
             onDecrease={handleDecrease}
             onRemove={handleRemove}
+            onCheckout={handleCheckout}
+            checkingOut={checkingOut}
+            orderMessage={orderMessage}
           />
         </div>
 

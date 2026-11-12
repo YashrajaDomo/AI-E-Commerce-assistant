@@ -23,7 +23,7 @@ function ProductDetails({ onAddToCart }) {
     <main className="page-shell product-details">
       <Link to="/" className="back-link">← Back to products</Link>
       <div className="detail-layout">
-        <img src={product.image_url} alt={product.name} />
+        <img src={product.image_url || '/product-placeholder.svg'} alt={product.name} />
         <div className="detail-content">
           <span className="badge">{product.category}</span>
           <h1>{product.name}</h1>

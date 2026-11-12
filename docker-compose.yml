@@ -1,27 +1,189 @@
 services:
-  backend:
-    build:
-      context: ./backend
-    container_name: ai-shop-backend
-    ports:
-      - "8000:8000"
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
     environment:
-      DATABASE_URL: sqlite:///./ecommerce.db
-      OPENAI_API_KEY: ""
-      AI_MODEL: gpt-4o-mini
-      FRONTEND_URL: http://localhost:5173
-      HOST: 0.0.0.0
-      PORT: 8000
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      CATALOG_DB_USER: ${CATALOG_DB_USER:-catalog_user}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD in .env}
+      CART_DB_USER: ${CART_DB_USER:-cart_user}
+      CART_DB_PASSWORD: ${CART_DB_PASSWORD:?Set CART_DB_PASSWORD in .env}
+      ORDERS_DB_USER: ${ORDERS_DB_USER:-orders_user}
+      ORDERS_DB_PASSWORD: ${ORDERS_DB_PASSWORD:?Set ORDERS_DB_PASSWORD in .env}
+      PAYMENTS_DB_USER: ${PAYMENTS_DB_USER:-payments_user}
+      PAYMENTS_DB_PASSWORD: ${PAYMENTS_DB_PASSWORD:?Set PAYMENTS_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     volumes:
-      - ./backend:/app
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "--protocol=tcp", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-ai_shop}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  catalog:
+    build:
+      context: .
+      dockerfile: services/Dockerfile
+      args:
+        SERVICE_NAME: catalog
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_NAME: catalog_db
+      DB_USER: ${CATALOG_DB_USER:-catalog_user}
+      DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${CATALOG_PORT:-8001}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  cart:
+    build:
+      context: .
+      dockerfile: services/Dockerfile
+      args:
+        SERVICE_NAME: cart
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_NAME: cart_db
+      DB_USER: ${CART_DB_USER:-cart_user}
+      DB_PASSWORD: ${CART_DB_PASSWORD:?Set CART_DB_PASSWORD in .env}
+      CATALOG_URL: http://catalog:8000
+    ports:
+      - "127.0.0.1:${CART_PORT:-8002}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  payments:
+    build:
+      context: .
+      dockerfile: services/Dockerfile
+      args:
+        SERVICE_NAME: payments
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_NAME: payments_db
+      DB_USER: ${PAYMENTS_DB_USER:-payments_user}
+      DB_PASSWORD: ${PAYMENTS_DB_PASSWORD:?Set PAYMENTS_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${PAYMENTS_PORT:-8004}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  orders:
+    build:
+      context: .
+      dockerfile: services/Dockerfile
+      args:
+        SERVICE_NAME: orders
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_NAME: orders_db
+      DB_USER: ${ORDERS_DB_USER:-orders_user}
+      DB_PASSWORD: ${ORDERS_DB_PASSWORD:?Set ORDERS_DB_PASSWORD in .env}
+      CATALOG_URL: http://catalog:8000
+      PAYMENTS_URL: http://payments:8000
+    ports:
+      - "127.0.0.1:${ORDERS_PORT:-8003}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+      payments:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  assistant:
+    build:
+      context: .
+      dockerfile: services/Dockerfile
+      args:
+        SERVICE_NAME: assistant
+    restart: unless-stopped
+    environment:
+      MONGO_URL: mongodb://${MONGO_ROOT_USERNAME:-ai_shop}:${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}@mongo:27017/ai_assistant?authSource=admin
+      MONGO_DATABASE: ai_assistant
+      CATALOG_URL: http://catalog:8000
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+    ports:
+      - "127.0.0.1:${ASSISTANT_PORT:-8005}:8000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   frontend:
     build:
       context: ./frontend
-      args:
-        VITE_API_URL: http://localhost:8000
-    container_name: ai-shop-frontend
+    restart: unless-stopped
     ports:
-      - "80:80"
+      - "127.0.0.1:${FRONTEND_PORT:-80}:80"
     depends_on:
-      - backend
+      catalog:
+        condition: service_healthy
+      cart:
+        condition: service_healthy
+      orders:
+        condition: service_healthy
+      payments:
+        condition: service_healthy
+      assistant:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  mongo_data:

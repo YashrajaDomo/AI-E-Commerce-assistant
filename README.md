@@ -1,134 +1,105 @@
 # AI Shop Assistant
 
-AI Shop Assistant is a simple full-stack e-commerce application that combines a React frontend, a Python FastAPI backend, and a SQLite database. It includes product browsing, keyword and natural-language searching, product filters, a shopping cart, and an AI shopping assistant that works with a fallback mode when no API key is configured.
+A small, containerized e-commerce demo built from five independently deployable Python/FastAPI microservices, a React/Vite frontend, MySQL, and MongoDB. The payment integration is deliberately simulated; it does not charge real money.
 
-## Project Overview
+## Architecture
 
-The project demonstrates a clean monolithic architecture:
-
-React
-↓
-FastAPI
-↓
-Services
-↓
-SQLite Database
-
-AI Chat flow:
-
-React
-↓
-FastAPI
-↓
-AI Service
-↓
-Product Search
-↓
-SQLite
-↓
-AI Response
-
-## Features
-
-- Product browsing
-- Keyword search
-- Search ranking using basic relevance scoring
-- Natural-language search
-- Product filtering by category and price
-- Product detail view
-- Shopping cart management
-- AI chatbot assistant with fallback logic
-- Product recommendation system
-- Product comparison helpers
-- REST API with FastAPI docs
-- Docker configuration for backend and frontend
-
-## Technologies
-
-- React
-- Vite
-- Python
-- FastAPI
-- SQLAlchemy
-- SQLite
-- Docker
-- Pytest
-
-## Local Setup
-
-### Backend
-
-1. Navigate to the backend folder.
-2. Create a virtual environment if you want one.
-3. Install the dependencies:
-
-```bash
-pip install -r requirements.txt
+```text
+Browser
+  -> React + Nginx (same-origin /api routing)
+       -> Product Catalog -> MySQL: catalog_db
+       -> Cart            -> MySQL: cart_db
+       -> Orders          -> MySQL: orders_db -> Payments -> MySQL: payments_db
+       -> AI Assistant    -> MongoDB: ai_assistant
+                                -> Product Catalog (product context)
 ```
 
-4. Start the server:
+MySQL runs as one server locally, with a separate database and least-privilege account for each of the four SQL-owning services. The AI Assistant owns MongoDB and stores conversation history there. Services communicate over HTTP and do not query another service's database.
 
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+## Services
+
+| Service | Responsibility | Storage | Local API |
+|---|---|---|---|
+| `catalog` | Product listing, detail, filters, relevance-ranked search, seed catalog | MySQL `catalog_db` | `http://localhost:8001/docs` |
+| `cart` | Demo shopper's cart and quantities | MySQL `cart_db` | `http://localhost:8002/docs` |
+| `orders` | Price snapshots, stock checks, order status and payment orchestration | MySQL `orders_db` | `http://localhost:8003/docs` |
+| `payments` | Demo-only payment authorization records; no real payment gateway | MySQL `payments_db` | `http://localhost:8004/docs` |
+| `assistant` | Natural-language product matching, optional LLM response, conversation history | MongoDB `ai_assistant` | `http://localhost:8005/docs` |
+
+The browser uses the frontend's same-origin `/api` endpoints. Vite proxies these paths to the local services during development; Nginx does the routing in the frontend container.
+
+## Run with Docker Compose
+
+Docker Desktop must be running. From the repository root:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
-### Frontend
+Edit `.env` and replace the local example database passwords. `OPENAI_API_KEY` is optional: without it, the assistant uses its Python fallback and still returns catalog products. Then run:
 
-1. Navigate to the frontend folder.
-2. Install dependencies:
-
-```bash
-npm install
-```
-
-3. Start the dev server:
-
-```bash
-npm run dev -- --host 0.0.0.0
-```
-
-### Docker Compose
-
-From the project root:
-
-```bash
+```powershell
 docker compose up --build
 ```
 
-The frontend is available on http://localhost:80 and the backend is available on http://localhost:8000.
+Open the application at <http://localhost/>. The service APIs are also published on ports 8001–8005 for local development. MySQL and MongoDB ports are bound to loopback only. Data persists in the `mysql_data` and `mongo_data` Compose volumes.
 
-## Environment Variables
+Stop the stack with `docker compose down`; use `docker compose down -v` only when intentionally deleting local database data.
 
-Create a `.env` file based on `.env.example`.
+## Run the frontend locally
 
-Example:
+Start the Compose services, then run Vite in another terminal:
 
-```env
-DATABASE_URL=sqlite:///./ecommerce.db
-OPENAI_API_KEY=
-AI_MODEL=gpt-4o-mini
-FRONTEND_URL=http://localhost:5173
-HOST=0.0.0.0
-PORT=8000
+```powershell
+cd frontend
+npm ci
+npm run dev
 ```
 
-## API Documentation
+Vite's `/api` proxy keeps browser requests same-origin and forwards them to the local service ports.
 
-The FastAPI app exposes automatic docs at:
+## API examples
 
-- http://localhost:8000/docs
-- http://localhost:8000/redoc
+```text
+GET    /api/products?q=gaming%20laptop&max_price=100000
+GET    /api/products/{id}
+GET    /api/cart
+POST   /api/cart                 {"product_id": 1, "quantity": 1}
+PUT    /api/cart/{item_id}       {"quantity": 2}
+DELETE /api/cart/{item_id}
+POST   /api/orders               {"items": [{"product_id": 1, "quantity": 1}]}
+POST   /api/chat                 {"message": "I need a laptop under 70000"}
+```
 
-## Future Improvements
+The frontend's **Checkout (demo)** button creates an order and requests a simulated payment. It is not a real checkout or payment processor.
 
-- PostgreSQL migration
-- Elasticsearch/OpenSearch integration
-- Vector database for better recommendations
-- Authentication and user carts
-- Kubernetes manifests
-- CI/CD workflows
-- Payment gateway integration
+Each service exposes `/health` for liveness, `/ready` for dependency readiness, and `/docs` for FastAPI's OpenAPI documentation.
 
-## Notes
+## Kubernetes readiness
 
-This project intentionally keeps the code simple and beginner-friendly while still demonstrating important e-commerce and AI assistant patterns.
+Starter manifests and local deployment notes are in [`k8s/`](./k8s/). They include the five services, frontend, MySQL and MongoDB workloads, persistent volume claims, probes, resource requests/limits, ConfigMaps, and Secret references. They are templates: build and publish the service images to a registry, create the documented Kubernetes Secret, then apply the base manifests. Storage classes, ingress/TLS, secret management, backups, and production scaling should be configured for the target cluster.
+
+## Technology
+
+- React, Vite, JavaScript, CSS, Nginx
+- Python, FastAPI, SQLAlchemy
+- MySQL 8 for catalog, cart, orders, and demo payments
+- MongoDB for AI conversation history
+- Docker Compose; Kubernetes starter manifests
+- Pytest
+
+## Project layout
+
+```text
+frontend/                 React UI, local proxy and production Nginx
+services/catalog/         Product catalog microservice
+services/cart/            Shopping cart microservice
+services/orders/          Order and payment orchestration microservice
+services/payments/        Demo payment microservice
+services/assistant/       AI assistant and MongoDB conversation history
+services/common/          Shared DB/health helpers (no cross-service business logic)
+mysql/init/                Local MySQL database/user bootstrap
+k8s/base/                 Kubernetes starter resources
+docker-compose.yml        Local container orchestration
+.env.example              Local environment-variable template
+```

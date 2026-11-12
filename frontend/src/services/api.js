@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 async function handleResponse(response) {
   if (!response.ok) {
@@ -9,7 +9,7 @@ async function handleResponse(response) {
 }
 
 export async function getProducts(params = {}) {
-  const url = new URL(`${API_BASE_URL}/api/products`);
+  const url = new URL(`${API_BASE_URL}/api/products`, window.location.origin);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       url.searchParams.set(key, value);
@@ -60,6 +60,15 @@ export async function chatWithAI(message) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
+  });
+  return handleResponse(response);
+}
+
+export async function createOrder(items) {
+  const response = await fetch(`${API_BASE_URL}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
   });
   return handleResponse(response);
 }
